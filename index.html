@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rappels Devoirs</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4ff;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #3b5bdb;
+      text-align: center;
+    }
+    .formulaire {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #3b5bdb;
+      color: white;
+      border: none;
+      padding: 12px;
+      width: 100%;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 5px;
+    }
+    button:hover { background: #2f4ac0; }
+    .filtres {
+      background: white;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .filtre-btn {
+      width: auto;
+      padding: 8px 15px;
+      background: #e0e7ff;
+      color: #3b5bdb;
+      border-radius: 20px;
+      font-size: 14px;
+    }
+    .filtre-btn.actif {
+      background: #3b5bdb;
+      color: white;
+    }
+    .devoir {
+      background: white;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .devoir.termine {
+      opacity: 0.5;
+      border-left: 5px solid gray;
+    }
+    .devoir.termine .texte {
+      text-decoration: line-through;
+    }
+    .urgent { border-left: 5px solid red; }
+    .bientot { border-left: 5px solid orange; }
+    .ok { border-left: 5px solid green; }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-direction: column;
+    }
+    .btn-terminer {
+      background: #40c057;
+      width: auto;
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    .btn-supprimer {
+      background: red;
+      width: auto;
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    .compteur {
+      text-align: center;
+      color: #666;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📚 Mes Rappels de Devoirs</h1>
+
+  <div class="formulaire">
+    <input type="text" id="matiere" placeholder="Matière (ex: Maths, Français...)">
+    <input type="text" id="description" placeholder="Description du devoir">
+    <input type="date" id="date">
+    <button onclick="ajouterDevoir()">➕ Ajouter le devoir</button>
+  </div>
+
+  <div class="filtres" id="filtres">
+    <button class="filtre-btn actif" onclick="filtrer('tous')">📋 Tous</button>
+    <button class="filtre-btn" onclick="filtrer('actifs')">⏳ En cours</button>
+    <button class="filtre-btn" onclick="filtrer('termines')">✅ Terminés</button>
+  </div>
+
+  <div class="compteur" id="compteur"></div>
+  <div id="liste-devoirs"></div>
+
+  <script>
+    let devoirs = JSON.parse(localStorage.getItem('devoirs')) || [];
+    let filtreCourant = 'tous';
+    let filtreMatiere = 'toutes';
+
+    function sauvegarder() {
+      localStorage.setItem('devoirs', JSON.stringify(devoirs));
+    }
+
+    function ajouterDevoir() {
+      const matiere = document.getElementById('matiere').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const date = document.getElementById('date').value;
+
+      if (!matiere || !description || !date) {
+        alert('Remplis tous les champs !');
+        return;
+      }
+
+      devoirs.push({ matiere, description, date, termine: false });
+      sauvegarder();
+      mettreAJourFiltres();
+      afficherDevoirs();
+
+      document.getElementById('matiere').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('date').value = '';
+    }
+
+    function toggleTermine(index) {
+      devoirs[index].termine = !devoirs[index].termine;
+      sauvegarder();
+      afficherDevoirs();
+    }
+
+    function supprimerDevoir(index) {
+      devoirs.splice(index, 1);
+      sauvegarder();
+      mettreAJourFiltres();
+      afficherDevoirs();
+    }
+
+    function filtrer(type) {
+      filtreCourant = type;
+      document.querySelectorAll('.filtre-btn').forEach(b => b.classList.remove('actif'));
+      event.target.classList.add('actif');
+      afficherDevoirs();
+    }
+
+    function filtrerMatiere(matiere) {
+      filtreMatiere = matiere;
+      afficherDevoirs();
+    }
+
+    function mettreAJourFiltres() {
+      const matieres = [...new Set(devoirs.map(d => d.matiere))];
+      const filtresDiv = document.getElementById('filtres');
+
+      let html = `
+        <button class="filtre-btn ${filtreCourant === 'tous' ? 'actif' : ''}" onclick="filtrer('tous')">📋 Tous</button>
+        <button class="filtre-btn ${filtreCourant === 'actifs' ? 'actif' : ''}" onclick="filtrer('actifs')">⏳ En cours</button>
+        <button class="filtre-btn ${filtreCourant === 'termines' ? 'actif' : ''}" onclick="filtrer('termines')">✅ Terminés</button>
+      `;
+
+      matieres.forEach(m => {
+        html += `<button class="filtre-btn ${filtreMatiere === m ? 'actif' : ''}" onclick="filtrerMatiere('${m}')">${m}</button>`;
+      });
+
+      filtresDiv.innerHTML = html;
+    }
+
+    function afficherDevoirs() {
+      const liste = document.getElementById('liste-devoirs');
+      const compteur = document.getElementById('compteur');
+      liste.innerHTML = '';
+
+      const aujourd_hui = new Date();
+      let devoirsFiltres = [...devoirs];
+
+      devoirsFiltres.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      if (filtreCourant === 'actifs') devoirsFiltres = devoirsFiltres.filter(d => !d.termine);
+      if (filtreCourant === 'termines') devoirsFiltres = devoirsFiltres.filter(d => d.termine);
+      if (filtreMatiere !== 'toutes') devoirsFiltres = devoirsFiltres.filter(d => d.matiere === filtreMatiere);
+
+      const actifs = devoirs.filter(d => !d.termine).length;
+      compteur.textContent = `📌 ${actifs} devoir(s) en cours · ${devoirs.length - actifs} terminé(s)`;
+
+      if (devoirsFiltres.length === 0) {
+        liste.innerHTML = '<p style="text-align:center;color:#999">Aucun devoir ici ! 🎉</p>';
+        return;
+      }
+
+      devoirsFiltres.forEach((devoir, index) => {
+        const dateRemise = new Date(devoir.date);
+        const joursRestants = Math.ceil((dateRemise - aujourd_hui) / (1000 * 60 * 60 * 24));
+        const realIndex = devoirs.indexOf(devoir);
+
+        let classe = 'ok';
+        let emoji = '✅';
+        if (!devoir.termine) {
+          if (joursRestants <= 2) { classe = 'urgent'; emoji = '🔴'; }
+          else if (joursRestants <= 5) { classe = 'bientot'; emoji = '🟠'; }
+          else { classe = 'ok'; emoji = '🟢'; }
+        }
+
+        liste.innerHTML += `
+          <div class="devoir ${devoir.termine ? 'termine' : classe}">
+            <div class="texte">
+              <strong>${emoji} ${devoir.matiere}</strong><br>
+              ${devoir.description}<br>
+              <small>📅 Remise : ${devoir.date} · ${devoir.termine ? 'Terminé !' : joursRestants + ' jours restants'}</small>
+            </div>
+            <div class="actions">
+              <button class="btn-terminer" onclick="toggleTermine(${realIndex})">
+                ${devoir.termine ? '↩️ Reprendre' : '✅ Terminé'}
+              </button>
+              <button class="btn-supprimer" onclick="supprimerDevoir(${realIndex})">🗑️ Supprimer</button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    afficherDevoirs();
+    mettreAJourFiltres();
+  </script>
+</body>
+</html>
