@@ -22,7 +22,7 @@
       margin-bottom: 20px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    input, select {
+    input {
       width: 100%;
       padding: 10px;
       margin: 8px 0;
@@ -59,6 +59,7 @@
       color: #3b5bdb;
       border-radius: 20px;
       font-size: 14px;
+      margin: 0;
     }
     .filtre-btn.actif {
       background: #3b5bdb;
@@ -119,12 +120,7 @@
     <button onclick="ajouterDevoir()">➕ Ajouter le devoir</button>
   </div>
 
-  <div class="filtres" id="filtres">
-    <button class="filtre-btn actif" onclick="filtrer('tous')">📋 Tous</button>
-    <button class="filtre-btn" onclick="filtrer('actifs')">⏳ En cours</button>
-    <button class="filtre-btn" onclick="filtrer('termines')">✅ Terminés</button>
-  </div>
-
+  <div class="filtres" id="filtres"></div>
   <div class="compteur" id="compteur"></div>
   <div id="liste-devoirs"></div>
 
@@ -149,8 +145,7 @@
 
       devoirs.push({ matiere, description, date, termine: false });
       sauvegarder();
-      mettreAJourFiltres();
-      afficherDevoirs();
+      rendrePage();
 
       document.getElementById('matiere').value = '';
       document.getElementById('description').value = '';
@@ -166,34 +161,38 @@
     function supprimerDevoir(index) {
       devoirs.splice(index, 1);
       sauvegarder();
-      mettreAJourFiltres();
-      afficherDevoirs();
+      rendrePage();
     }
 
-    function filtrer(type) {
+    function setFiltre(type) {
       filtreCourant = type;
-      document.querySelectorAll('.filtre-btn').forEach(b => b.classList.remove('actif'));
-      event.target.classList.add('actif');
-      afficherDevoirs();
+      filtreMatiere = 'toutes';
+      rendrePage();
     }
 
-    function filtrerMatiere(matiere) {
+    function setFiltreMatiere(matiere) {
       filtreMatiere = matiere;
+      filtreCourant = 'tous';
+      rendrePage();
+    }
+
+    function rendrePage() {
+      afficherFiltres();
       afficherDevoirs();
     }
 
-    function mettreAJourFiltres() {
+    function afficherFiltres() {
       const matieres = [...new Set(devoirs.map(d => d.matiere))];
       const filtresDiv = document.getElementById('filtres');
 
       let html = `
-        <button class="filtre-btn ${filtreCourant === 'tous' ? 'actif' : ''}" onclick="filtrer('tous')">📋 Tous</button>
-        <button class="filtre-btn ${filtreCourant === 'actifs' ? 'actif' : ''}" onclick="filtrer('actifs')">⏳ En cours</button>
-        <button class="filtre-btn ${filtreCourant === 'termines' ? 'actif' : ''}" onclick="filtrer('termines')">✅ Terminés</button>
+        <button class="filtre-btn ${filtreCourant === 'tous' && filtreMatiere === 'toutes' ? 'actif' : ''}" onclick="setFiltre('tous')">📋 Tous</button>
+        <button class="filtre-btn ${filtreCourant === 'actifs' ? 'actif' : ''}" onclick="setFiltre('actifs')">⏳ En cours</button>
+        <button class="filtre-btn ${filtreCourant === 'termines' ? 'actif' : ''}" onclick="setFiltre('termines')">✅ Terminés</button>
       `;
 
       matieres.forEach(m => {
-        html += `<button class="filtre-btn ${filtreMatiere === m ? 'actif' : ''}" onclick="filtrerMatiere('${m}')">${m}</button>`;
+        html += `<button class="filtre-btn ${filtreMatiere === m ? 'actif' : ''}" onclick="setFiltreMatiere('${m}')">${m}</button>`;
       });
 
       filtresDiv.innerHTML = html;
@@ -205,8 +204,9 @@
       liste.innerHTML = '';
 
       const aujourd_hui = new Date();
-      let devoirsFiltres = [...devoirs];
+      aujourd_hui.setHours(0, 0, 0, 0);
 
+      let devoirsFiltres = [...devoirs];
       devoirsFiltres.sort((a, b) => new Date(a.date) - new Date(b.date));
 
       if (filtreCourant === 'actifs') devoirsFiltres = devoirsFiltres.filter(d => !d.termine);
@@ -221,17 +221,17 @@
         return;
       }
 
-      devoirsFiltres.forEach((devoir, index) => {
-        const dateRemise = new Date(devoir.date);
-        const joursRestants = Math.ceil((dateRemise - aujourd_hui) / (1000 * 60 * 60 * 24));
+      devoirsFiltres.forEach((devoir) => {
         const realIndex = devoirs.indexOf(devoir);
+        const dateRemise = new Date(devoir.date);
+        dateRemise.setHours(0, 0, 0, 0);
+        const joursRestants = Math.ceil((dateRemise - aujourd_hui) / (1000 * 60 * 60 * 24));
 
         let classe = 'ok';
-        let emoji = '✅';
+        let emoji = '🟢';
         if (!devoir.termine) {
           if (joursRestants <= 2) { classe = 'urgent'; emoji = '🔴'; }
           else if (joursRestants <= 5) { classe = 'bientot'; emoji = '🟠'; }
-          else { classe = 'ok'; emoji = '🟢'; }
         }
 
         liste.innerHTML += `
@@ -239,11 +239,11 @@
             <div class="texte">
               <strong>${emoji} ${devoir.matiere}</strong><br>
               ${devoir.description}<br>
-              <small>📅 Remise : ${devoir.date} · ${devoir.termine ? 'Terminé !' : joursRestants + ' jours restants'}</small>
+              <small>📅 Remise : ${devoir.date} · ${devoir.termine ? 'Terminé !' : joursRestants + ' jour(s) restant(s)'}</small>
             </div>
             <div class="actions">
               <button class="btn-terminer" onclick="toggleTermine(${realIndex})">
-                ${devoir.termine ? '↩️ Reprendre' : '✅ Terminé'}
+                ${devoir.termine ? '↩️ Reprendre' : '✅ Marquer terminé'}
               </button>
               <button class="btn-supprimer" onclick="supprimerDevoir(${realIndex})">🗑️ Supprimer</button>
             </div>
@@ -252,8 +252,7 @@
       });
     }
 
-    afficherDevoirs();
-    mettreAJourFiltres();
+    rendrePage();
   </script>
 </body>
 </html>
