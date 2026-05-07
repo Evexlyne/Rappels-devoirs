@@ -85,6 +85,7 @@
     .urgent { border-left: 5px solid red; }
     .bientot { border-left: 5px solid orange; }
     .ok { border-left: 5px solid green; }
+    .retard { border-left: 5px solid purple; background: #fff0f0; }
     .actions {
       display: flex;
       gap: 8px;
@@ -107,6 +108,15 @@
       color: #666;
       margin-bottom: 15px;
       font-size: 14px;
+    }
+    .badge-retard {
+      display: inline-block;
+      background: purple;
+      color: white;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 5px;
     }
   </style>
 </head>
@@ -155,7 +165,7 @@
     function toggleTermine(index) {
       devoirs[index].termine = !devoirs[index].termine;
       sauvegarder();
-      afficherDevoirs();
+      rendrePage();
     }
 
     function supprimerDevoir(index) {
@@ -181,13 +191,23 @@
       afficherDevoirs();
     }
 
+    function getJoursRestants(date) {
+      const aujourd_hui = new Date();
+      aujourd_hui.setHours(0, 0, 0, 0);
+      const dateRemise = new Date(date);
+      dateRemise.setHours(0, 0, 0, 0);
+      return Math.ceil((dateRemise - aujourd_hui) / (1000 * 60 * 60 * 24));
+    }
+
     function afficherFiltres() {
       const matieres = [...new Set(devoirs.map(d => d.matiere))];
+      const enRetard = devoirs.filter(d => !d.termine && getJoursRestants(d.date) < 0).length;
       const filtresDiv = document.getElementById('filtres');
 
       let html = `
         <button class="filtre-btn ${filtreCourant === 'tous' && filtreMatiere === 'toutes' ? 'actif' : ''}" onclick="setFiltre('tous')">📋 Tous</button>
         <button class="filtre-btn ${filtreCourant === 'actifs' ? 'actif' : ''}" onclick="setFiltre('actifs')">⏳ En cours</button>
+        <button class="filtre-btn ${filtreCourant === 'retard' ? 'actif' : ''}" onclick="setFiltre('retard')">⚠️ En retard ${enRetard > 0 ? '<span class=\'badge-retard\'>' + enRetard + '</span>' : ''}</button>
         <button class="filtre-btn ${filtreCourant === 'termines' ? 'actif' : ''}" onclick="setFiltre('termines')">✅ Terminés</button>
       `;
 
@@ -203,18 +223,19 @@
       const compteur = document.getElementById('compteur');
       liste.innerHTML = '';
 
-      const aujourd_hui = new Date();
-      aujourd_hui.setHours(0, 0, 0, 0);
-
       let devoirsFiltres = [...devoirs];
       devoirsFiltres.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      if (filtreCourant === 'actifs') devoirsFiltres = devoirsFiltres.filter(d => !d.termine);
+      if (filtreCourant === 'actifs') devoirsFiltres = devoirsFiltres.filter(d => !d.termine && getJoursRestants(d.date) >= 0);
+      if (filtreCourant === 'retard') devoirsFiltres = devoirsFiltres.filter(d => !d.termine && getJoursRestants(d.date) < 0);
       if (filtreCourant === 'termines') devoirsFiltres = devoirsFiltres.filter(d => d.termine);
       if (filtreMatiere !== 'toutes') devoirsFiltres = devoirsFiltres.filter(d => d.matiere === filtreMatiere);
 
-      const actifs = devoirs.filter(d => !d.termine).length;
-      compteur.textContent = `📌 ${actifs} devoir(s) en cours · ${devoirs.length - actifs} terminé(s)`;
+      const actifs = devoirs.filter(d => !d.termine && getJoursRestants(d.date) >= 0).length;
+      const enRetard = devoirs.filter(d => !d.termine && getJoursRestants(d.date) < 0).length;
+      const termines = devoirs.filter(d => d.termine).length;
+
+      compteur.textContent = `📌 ${actifs} en cours · ⚠️ ${enRetard} en retard · ✅ ${termines} terminé(s)`;
 
       if (devoirsFiltres.length === 0) {
         liste.innerHTML = '<p style="text-align:center;color:#999">Aucun devoir ici ! 🎉</p>';
@@ -223,15 +244,24 @@
 
       devoirsFiltres.forEach((devoir) => {
         const realIndex = devoirs.indexOf(devoir);
-        const dateRemise = new Date(devoir.date);
-        dateRemise.setHours(0, 0, 0, 0);
-        const joursRestants = Math.ceil((dateRemise - aujourd_hui) / (1000 * 60 * 60 * 24));
+        const joursRestants = getJoursRestants(devoir.date);
 
         let classe = 'ok';
         let emoji = '🟢';
+        let statut = joursRestants + ' jour(s) restant(s)';
+
         if (!devoir.termine) {
-          if (joursRestants <= 2) { classe = 'urgent'; emoji = '🔴'; }
-          else if (joursRestants <= 5) { classe = 'bientot'; emoji = '🟠'; }
+          if (joursRestants < 0) {
+            classe = 'retard';
+            emoji = '⚠️';
+            statut = 'En retard de ' + Math.abs(joursRestants) + ' jour(s) !';
+          } else if (joursRestants <= 2) {
+            classe = 'urgent';
+            emoji = '🔴';
+          } else if (joursRestants <= 5) {
+            classe = 'bientot';
+            emoji = '🟠';
+          }
         }
 
         liste.innerHTML += `
@@ -239,7 +269,7 @@
             <div class="texte">
               <strong>${emoji} ${devoir.matiere}</strong><br>
               ${devoir.description}<br>
-              <small>📅 Remise : ${devoir.date} · ${devoir.termine ? 'Terminé !' : joursRestants + ' jour(s) restant(s)'}</small>
+              <small>📅 Remise : ${devoir.date} · ${devoir.termine ? 'Terminé !' : statut}</small>
             </div>
             <div class="actions">
               <button class="btn-terminer" onclick="toggleTermine(${realIndex})">
